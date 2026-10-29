@@ -1,1 +1,142 @@
-# shakesense
+# ShakeSense — Industrial Motor Health Telemetry & Diagnostic Platform
+
+ShakeSense is a production-grade, dark-mode predictive maintenance and telemetric monitoring application engineered for factory floors, workshops, and industrial IoT environments.
+
+Developed for **RideHack** by unifying Stitch-generated designs into a responsive, integrated web platform.
+
+---
+
+## System Architecture & Tech Stack
+
+- **Framework**: React 18 with TypeScript and Vite 6
+- **Routing**: React Router v6 with client-side history, deep linking, and URL parameter state preservation
+- **Styling**: Tailwind CSS v3 with custom industrial tokens based on `kinetic_industrial_precision/DESIGN.md`
+- **State Management**: Centralized single-source-of-truth `FleetContext` providing unified data consistency across all views
+- **Iconography**: Crisp Lucide React SVG components (offline-resilient, zero CDN latency, zero layout shifts)
+- **Typography**: 
+  - **Inter** (`@fontsource/inter` 400, 500, 600, 700) for clean interface hierarchy
+  - **JetBrains Mono** (`@fontsource/jetbrains-mono` 400, 500, 600, 700) with tabular numerals (`tnum`) for rock-solid mechanical measurements
+- **DSP Telemetry Engine**: Simulated 1600 Hz time-domain triaxial vibration waveforms (X, dominant Y, Z axes), harmonic FFT bandpass filters, thermal load envelopes, and ISO 10816-3 Class II baseline deviation modeling
+- **Testing**: Vitest + React Testing Library unit and integration test suite
+
+---
+
+## Implemented Pages & Capabilities
+
+1. **`/overview` — Motor Health Overview**:
+   - Fleet-wide KPI summary (12 Active Drives: 9 Healthy Normal, 2 Needs Attention, 1 Critical Alert).
+   - High-contrast interactive vector motor schematic with triaxial sensor node placement callout.
+   - Dual-axis baseline tolerance indicators and diagnostic recommendations.
+   - Quick shift diagnostic log generation and download (`.md`).
+   - One-click instant telemetry scan trigger.
+
+2. **`/machines` — Machines Fleet Inventory**:
+   - Searchable, filterable registry of all 12 monitored retrofit motor units.
+   - Filters: All, Healthy Normal, Warning Drift, Critical Trigger, and Disconnected Edge Nodes.
+   - Multi-column sort by ID, Name, Vibration Velocity, and Bearing Temperature.
+   - CSV inventory export and ISO 10816 machinery fleet audit report download.
+   - Provision Retrofit Node modal dialog with MAC and bus configuration.
+   - Sensor Calibration matrix modal with baseline tolerance and sampling rate adjustments.
+
+3. **`/machines/:machineId` — Individual Machine Profile**:
+   - Comprehensive asset deep-dive (e.g. `MTR-001`, `PMP-002`, `CMP-004`).
+   - Motor hardware specifications, learned baseline thresholds, and sensor topology.
+   - Historical maintenance event log and interactive sensor recalibration workflow.
+   - Contextual direct drill-down into live sensor telemetry.
+
+4. **`/telemetry` & `/telemetry?machine=:id` — Live Telemetry & DSP Analysis**:
+   - Real-time animated triaxial accelerometer stream (MPU-6050 emulation).
+   - Dynamic peak cursor pin showing instantaneous peak velocity and dominant frequency.
+   - Bandpass DSP filters: All Bands (0–800 Hz), 1X Harmonic (10–30 Hz), 2X Harmonic (30–60 Hz), Blade Pass / Rotor (60–200 Hz), and High-Freq Bearing Cage (200–800 Hz).
+   - Thermal equilibrium envelope chart with ambient reference and 70°C trip limit.
+   - Edge Coprocessor diagnostic status bar and debug console drawer.
+
+5. **`/alerts` — Diagnostic Alarms & Events**:
+   - Real-time threshold violation registry with severity tags (Critical, Warning, Advisory).
+   - Dedicated **Acknowledge** and **Resolve** state transitions that update fleet-wide badge counts.
+   - Multi-parameter filtering by severity, acknowledgment status, and specific machinery unit.
+
+6. **`/analytics` — Predictive Analytics & Trends**:
+   - Fleet-wide vibration RMS trends and thermal equilibrium tracking across 1h, 24h, 7d, and 30d windows.
+   - ISO 10816-3 zone drift distribution breakdown (Zones A, B, C, D).
+   - Harmonic deviation histograms comparing baseline vs. current operating profiles.
+
+---
+
+## Simulated vs. Real Hardware Telemetry Disclosure
+
+In compliance with industrial engineering standards and honest system reporting:
+- **Simulation**: Telemetry data, time-domain waveform sweeps, and edge synchronization streams are currently driven by a mathematical mock engine emulating ESP32-S3 + MPU-6050 I2C sensor nodes.
+- **Physical Integration Readiness**: The domain model and context architecture are structured to plug directly into live MQTT brokers, WebSockets, or REST industrial edge gateways without refactoring UI layers.
+
+---
+
+## Brand Colors & Design System Tokens
+
+| Token | Hex | Role |
+| :--- | :--- | :--- |
+| **Jet Black** | `#0A0A0A` / `#0C0D0F` | Main canvas background |
+| **Cerulean Blue** | `#007BA7` | Active navigation, interactive controls, telemetry traces |
+| **Neon Rose** | `#FF2D95` | Critical anomalies and threshold breaches |
+| **Healthy Green** | `#32D583` | Nominal baseline operation |
+| **Warning Amber** | `#F5B942` | Advisory harmonic drift |
+| **Card Surface** | `#15171B` / `#1A1D23` | Instrument cards |
+| **Elevated Surface**| `#1D2026` / `#242830` | Hover states, modals, and toolbars |
+| **Border Outline** | `#30343B` / `#3F484E` | High-contrast component borders |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js**: v18.0.0 or later (v20+ recommended)
+- **Package Manager**: `npm` (v9+) or `pnpm` / `yarn`
+
+### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/parth-agarwal1603/shakesense.git
+cd shakesense
+npm install
+```
+
+### Running Locally (Development Mode)
+
+Start the Vite development server with Hot Module Replacement (HMR):
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Running Test Suite
+
+Execute the unit and integration tests via Vitest:
+
+```bash
+npm test
+```
+
+### Building for Production
+
+Compile TypeScript and build the optimized production assets:
+
+```bash
+npm run build
+```
+
+Preview the production build locally:
+
+```bash
+npm run preview
+```
+
+---
+
+## License
+
+Developed for RideHack / ShakeSense. All rights reserved.
