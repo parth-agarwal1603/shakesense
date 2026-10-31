@@ -23,6 +23,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileNav, isSidebarColl
     lastSyncTime,
     triggerManualSweep,
     isSweeping,
+    modelStatus,
+    modelError,
     criticalAlertsCount,
     warningAlertsCount,
   } = useFleet();
@@ -225,6 +227,20 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileNav, isSidebarColl
         </div>
 
         {/* Sync Sweep Indicator & Trigger */}
+        <span
+          className={`hidden lg:inline-block font-label-sm text-[10px] uppercase tracking-wider ${
+            modelStatus === 'error'
+              ? 'text-error'
+              : modelStatus === 'loading'
+              ? 'text-secondary'
+              : modelStatus === 'disabled'
+              ? 'text-outline'
+              : 'text-tertiary'
+          }`}
+          title={modelError || (modelStatus === 'disabled' ? 'ML model is not configured' : 'ML model ready')}
+        >
+          ML {modelStatus}
+        </span>
         <div className="font-telemetry-sm text-[12px] text-outline border-l border-outline-variant/30 pl-space-sm sm:pl-space-md flex items-center gap-1.5">
           <button
             onClick={triggerManualSweep}

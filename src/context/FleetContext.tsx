@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { Machine, Alert, Facility, TimeRange, CalibrationStatus } from '../types';
 import { INITIAL_FLEET } from '../data/mockFleet';
 import { INITIAL_ALERTS } from '../data/mockAlerts';
+import {
+  isModelConfigured,
+  ModelInferenceStatus,
+  ModelPrediction,
+  runModelInference,
+} from '../services/mlModel';
 
 interface FleetContextType {
   machines: Machine[];
@@ -17,6 +23,9 @@ interface FleetContextType {
   lastSyncTime: string;
   triggerManualSweep: () => Promise<void>;
   isSweeping: boolean;
+  modelStatus: ModelInferenceStatus;
+  modelError: string | null;
+  lastPredictions: ModelPrediction[];
   acknowledgeAlert: (alertId: string, author?: string) => void;
   resolveAlert: (alertId: string, author?: string) => void;
   provisionNode: (nodeData: { name: string; type: string; bay: string; location: string; baseline: number }) => void;
@@ -57,6 +66,11 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isLiveStreamEnabled, setIsLiveStreamEnabled] = useState<boolean>(true);
   const [lastSyncTime, setLastSyncTime] = useState<string>('10:42:18 AM');
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
+  const [modelStatus, setModelStatus] = useState<ModelInferenceStatus>(
+    isModelConfigured ? 'ready' : 'disabled',
+  );
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [lastPredictions, setLastPredictions] = useState<ModelPrediction[]>([]);
 
   // Controlled deterministic live micro-drift
   useEffect(() => {
@@ -115,12 +129,31 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const triggerManualSweep = useCallback(async () => {
     setIsSweeping(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const now = new Date();
-    const formatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setLastSyncTime(formatted);
-    setIsSweeping(false);
-  }, []);
+    setModelError(null);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (isModelConfigured) {
+        setModelStatus('loading');
+        const predictions = await runModelInference(machines);
+        setLastPredictions(predictions);
+        setModelStatus('ready');
+      }
+
+      const now = new Date();
+      const formatted = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      setLastSyncTime(formatted);
+    } catch (error) {
+      setModelStatus('error');
+      setModelError(error instanceof Error ? error.message : 'ML inference failed.');
+    } finally {
+      setIsSweeping(false);
+    }
+  }, [machines]);
 
   const acknowledgeAlert = useCallback((alertId: string, author: string = 'Markus Vance') => {
     setAlerts((prevAlerts) =>
@@ -281,6 +314,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     lastSyncTime,
     triggerManualSweep,
     isSweeping,
+    modelStatus,
+    modelError,
+    lastPredictions,
     acknowledgeAlert,
     resolveAlert,
     provisionNode,

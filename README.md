@@ -69,6 +69,26 @@ In compliance with industrial engineering standards and honest system reporting:
 - **Simulation**: Telemetry data, time-domain waveform sweeps, and edge synchronization streams are currently driven by a mathematical mock engine emulating ESP32-S3 + MPU-6050 I2C sensor nodes.
 - **Physical Integration Readiness**: The domain model and context architecture are structured to plug directly into live MQTT brokers, WebSockets, or REST industrial edge gateways without refactoring UI layers.
 
+### ML model integration
+
+The dashboard supports both browser and backend model files. Copy `.env.example` to `.env.local` and set `VITE_MODEL_PATH`. With `VITE_MODEL_RUNTIME=auto`, ONNX and TensorFlow.js run in the browser; Python/native files use `VITE_ML_API_URL`.
+
+The model receives seven numeric features per machine, in this order:
+
+`vibration.overall`, `vibration.x`, `vibration.y`, `vibration.z`, `temperature.core`, `temperature.ambient`, `edge.sampleRateHz`.
+
+The output must be a 2D tensor with one row per machine. The first output value is exposed as `score`; the second value is mapped to `healthy` (`0`), `warning` (`1`), or `critical` (`2`).
+
+Python-native files such as `.pkl`, `.joblib`, `.pt`, and `.pth` are sent to the configured backend. The backend receives the model path, format, timestamp, and the same feature arrays, and must return `{ "predictions": [{ "machineId": "MTR-001", ... }] }`.
+
+For TensorFlow.js, set:
+
+```env
+VITE_MODEL_PATH=/model
+VITE_MODEL_FORMAT=tensorflowjs
+VITE_MODEL_RUNTIME=browser
+```
+
 ---
 
 ## Brand Colors & Design System Tokens
