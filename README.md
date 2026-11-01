@@ -206,6 +206,56 @@ npm run preview
 
 ---
 
+## Deployment & Docker
+
+### Deploying to Render
+
+This repository is ready for zero-config deployment on [Render](https://render.com).
+
+#### Option A: Docker Service (Recommended)
+1. In Render, select **New Web Service** and connect this repository.
+2. Choose **Docker** as the runtime.
+3. Render will build using the root `Dockerfile` and automatically route traffic through port `10000` (or `$PORT`).
+
+#### Option B: Node Web Service
+1. In Render, select **New Web Service** and connect this repository.
+2. Choose **Node** as the runtime.
+3. Configure:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm run start`
+   - **Environment Variables**: `PORT=10000`
+
+### Host Security (`allowedHosts`)
+
+Vite 6 enforces strict Host header verification to prevent DNS rebinding attacks. In `vite.config.ts`, `server.allowedHosts` and `preview.allowedHosts` are explicitly locked to:
+- `shakesense.onrender.com`
+- `.onrender.com` (all Render domains)
+- `localhost`
+- `127.0.0.1`
+
+To specify additional custom domains, set the `VITE_ALLOWED_HOSTS` environment variable (comma-separated):
+```bash
+VITE_ALLOWED_HOSTS="dashboard.yourdomain.com,shakesense.onrender.com"
+```
+
+### Local Docker Build & Run
+
+Build the container image:
+
+```bash
+docker build -t shakesense-dashboard .
+```
+
+Run the container locally on port 3000:
+
+```bash
+docker run -p 3000:10000 -e PORT=10000 shakesense-dashboard
+```
+
+Navigate to `http://localhost:3000`.
+
+---
+
 ## License
 
 Developed for RideHack / ShakeSense. All rights reserved.

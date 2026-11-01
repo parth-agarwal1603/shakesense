@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+.git
+.github
+.DS_Store
+Thumbs.db
+*.png
+!stitch_shakesense_motor_health_dashboard/**/*.png
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+coverage
+.env.local
+.env.*.local
+backend/__pycache__
