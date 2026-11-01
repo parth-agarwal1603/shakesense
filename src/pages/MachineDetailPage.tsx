@@ -95,6 +95,9 @@ export const MachineDetailPage: React.FC = () => {
           <p className="font-body-md text-on-surface-variant">
             {machine.location} • {machine.bay}
           </p>
+          <p className="font-telemetry-sm text-outline">
+            MAC {machine.edge.macAddress || 'Not provisioned'} • I²C {machine.edge.busAddress || '0x68'} • {machine.edge.ipAddress}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">

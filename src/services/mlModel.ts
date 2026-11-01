@@ -82,7 +82,9 @@ const nativeModelArtifacts: NativeModelArtifact[] = [
   },
   {
     id: 'esp32Embedded',
-    path: import.meta.env.VITE_ESP32_MODEL_PATH?.trim() || 'global_models/esp32-model/ShakeSense_ESP32.ino',
+    path:
+      import.meta.env.VITE_ESP32_MODEL_PATH?.trim() ||
+      'global_models/esp32-model/ShakeSense_ESP32/ShakeSense_ESP32.ino',
     format: 'firmware',
     featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor', 'temperature_c'],
   },

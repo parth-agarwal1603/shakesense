@@ -97,18 +97,38 @@ The dashboard derives the global feature vector from the current triaxial readin
 
 ### ESP32 edge model
 
-The firmware in [`global_models/esp32-model`](./global_models/esp32-model) is integrated as the `esp32Embedded` model contract. It computes `mean`, `rms`, `peak_to_peak`, `kurtosis`, `crest_factor`, and `temperature_c` over a 1000-sample MPU-6050 window, then applies the device Median+MAD profile from `ShakeSense_Profile.h`. The backend returns this edge result alongside the three global model results.
+The firmware in [`global_models/esp32-model/ShakeSense_ESP32`](./global_models/esp32-model/ShakeSense_ESP32) is integrated as the `esp32Embedded` model contract. It uses `Adafruit_MPU6050` to collect triaxial acceleration, `DallasTemperature` for the DS18B20, and computes `mean`, `rms`, `peak_to_peak`, `kurtosis`, `crest_factor`, and `temperature_c` over a 1000-sample MPU-6050 window. It then applies the device Median+MAD profile from `ShakeSense_Profile.h`. The backend returns this edge result alongside the three global model results.
 
-`ShakeSense_Profile.h` is intentionally a placeholder until a real profile is exported. Generate one from the personalized notebook output, then upload `ShakeSense_ESP32.ino` with the Arduino `Wire`, `OneWire`, and `DallasTemperature` libraries:
+The L298N motor driver is wired as ENA/GPIO13, IN1/GPIO12, and IN2/GPIO14. The firmware initializes the driver OFF and does not start the motor automatically. After checking the wiring and motor safety, send `motor on` over the 115200-baud Serial console; use `motor off` or `stop` for an immediate stop. The sketch also emits live triaxial magnitude and temperature diagnostics every 500 ms and retries a missing MPU6050 every two seconds.
+
+`ShakeSense_Profile.h` is intentionally a placeholder until a real profile is exported. Generate one from the personalized notebook output, then upload `ShakeSense_ESP32.ino` with the Arduino `Wire`, `Adafruit MPU6050`, `Adafruit Unified Sensor`, `OneWire`, and `DallasTemperature` libraries:
 
 ```bash
 python global_models/esp32-model/export_profile.py \
   path/to/SHAKESENSE_MOTOR_001_calculated_features.csv \
   --device-id SHAKESENSE_MOTOR_001 \
-  --output global_models/esp32-model/ShakeSense_Profile.h
+  --output global_models/esp32-model/ShakeSense_ESP32/ShakeSense_Profile.h
 ```
 
 The firmware emits comma-separated feature values and `status=NORMAL|ABNORMAL` over Serial at 115200 baud. The current web dashboard remains simulation-backed until a gateway forwards those records to the backend `/predict` request.
+
+#### ESP32 upload
+
+Arduino IDE:
+
+1. Install the ESP32 board package and select **ESP32 Dev Module**.
+2. Install `Adafruit MPU6050`, `Adafruit Unified Sensor`, `OneWire`, and `DallasTemperature` from Library Manager.
+3. Open `global_models/esp32-model/ShakeSense_ESP32/ShakeSense_ESP32.ino`.
+4. Select the ESP32 serial port and upload at 115200 baud.
+
+PlatformIO can build the same sketch from the repository root:
+
+```bash
+pio run -e esp32dev
+pio device monitor -b 115200
+```
+
+Connect the MPU6050 to 3.3V, GND, SDA/GPIO21, and SCL/GPIO22. Connect the DS18B20 data line to GPIO4 with a 4.7k pull-up to 3.3V. The current sketch does not require the L298N for sensor-only operation; if it is connected, ENA/GPIO13, IN1/GPIO12, and IN2/GPIO14 remain disabled until `motor on` is sent.
 
 For TensorFlow.js, set:
 

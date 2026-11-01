@@ -10,6 +10,7 @@ export const OverviewPage: React.FC = () => {
     healthyCount,
     warningCount,
     criticalCount,
+    machines,
     selectedMachine,
     lastSyncTime,
     triggerManualSweep,
@@ -62,8 +63,9 @@ Audit Verification Hash: ${Math.random().toString(36).substring(2, 15).toUpperCa
   };
 
   // Flagged machine lists for KPI cards
-  const warningLabel = 'PMP-002, MTR-004';
-  const criticalLabel = 'CMP-004';
+  const warningLabel = machines.filter((machine) => machine.healthStatus === 'warning').map((machine) => machine.id).join(', ') || 'None';
+  const criticalLabel = machines.filter((machine) => machine.healthStatus === 'critical').map((machine) => machine.id).join(', ') || 'None';
+  const onlineCount = machines.filter((machine) => machine.connectionStatus !== 'disconnected').length;
 
   return (
     <div className="flex flex-col gap-5 sm:gap-6 w-full max-w-7xl mx-auto pb-8">
@@ -131,7 +133,7 @@ Audit Verification Hash: ${Math.random().toString(36).substring(2, 15).toUpperCa
           </div>
           <div className="mt-4 pt-3 bg-surface-container/40 rounded px-3 py-1.5 flex items-center justify-between">
             <span className="font-label-sm text-[11px] text-outline">Sensory Coverage</span>
-            <span className="font-telemetry-sm text-telemetry-sm text-on-surface">100% Online</span>
+            <span className="font-telemetry-sm text-telemetry-sm text-on-surface">{totalMachines ? ((onlineCount / totalMachines) * 100).toFixed(1) : '0.0'}% Online</span>
           </div>
         </div>
 

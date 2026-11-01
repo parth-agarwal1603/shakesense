@@ -29,7 +29,7 @@ GLOBAL_MODEL_PATHS = {
 PERSONALIZED_MODEL_PATH = os.getenv("SHAKESENSE_PERSONALIZED_MODEL_PATH", "")
 ESP32_FIRMWARE_PATH = os.getenv(
     "SHAKESENSE_ESP32_MODEL_PATH",
-    str(ROOT / "global_models" / "esp32-model" / "ShakeSense_ESP32.ino"),
+    str(ROOT / "global_models" / "esp32-model" / "ShakeSense_ESP32" / "ShakeSense_ESP32.ino"),
 )
 
 

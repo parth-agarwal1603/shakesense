@@ -8,29 +8,36 @@
   Hardware assumptions (edit to match your wiring):
     MPU6050 I2C: SDA=21, SCL=22, address=0x68
     DS18B20 data: GPIO 4, with 4.7k pull-up to 3.3V
+    L298N channel A: ENA=13, IN1=12, IN2=14
 
   Arduino libraries:
+    - Adafruit MPU6050
+    - Adafruit Unified Sensor
     - OneWire
     - DallasTemperature
-
-  MPU6050 is read directly over I2C (no MPU library required).
 */
 #include <Arduino.h>
 #include <math.h>
 #include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "ShakeSense_Types.h"
 #include "ShakeSense_Profile.h"
 
 static const int I2C_SDA_PIN = 21;
 static const int I2C_SCL_PIN = 22;
-static const uint8_t MPU_ADDR = 0x68;
 static const int DS18B20_PIN = 4;
+static const int MOTOR_ENA_PIN = 13;
+static const int MOTOR_IN1_PIN = 12;
+static const int MOTOR_IN2_PIN = 14;
 static const uint32_t SAMPLE_RATE_HZ = 100;
 static const uint16_t WINDOW_SIZE = 1000;
-static const float ACCEL_LSB_PER_G = 16384.0f; // MPU6050 +/-2g range
 static const uint32_t SAMPLE_PERIOD_US = 1000000UL / SAMPLE_RATE_HZ;
+static const unsigned long MPU_RETRY_INTERVAL_MS = 2000;
 
+Adafruit_MPU6050 mpu;
 OneWire oneWire(DS18B20_PIN);
 DallasTemperature tempSensor(&oneWire);
 
@@ -38,34 +45,53 @@ float samples[WINDOW_SIZE];
 float temperatureC = NAN;
 uint16_t sampleCount = 0;
 uint32_t nextSampleUs = 0;
+bool mpuReady = false;
+bool motorEnabled = false;
+unsigned long lastMpuRetryMs = 0;
+unsigned long lastTemperatureReadMs = 0;
+unsigned long lastLiveReportMs = 0;
+float latestAccelX = NAN;
+float latestAccelY = NAN;
+float latestAccelZ = NAN;
 
-bool writeMPU(uint8_t reg, uint8_t value) {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(reg);
-  Wire.write(value);
-  return Wire.endTransmission() == 0;
-}
-
-bool readAccelX_g(float &x_g) {
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x3B); // ACCEL_XOUT_H
-  if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom(MPU_ADDR, (uint8_t)6, (uint8_t)true) != 6) return false;
-  int16_t ax = (int16_t)((Wire.read() << 8) | Wire.read());
-  Wire.read(); Wire.read(); // discard Y
-  Wire.read(); Wire.read(); // discard Z
-  x_g = ((float)ax) / ACCEL_LSB_PER_G;
+bool tryStartMpu() {
+  if (!mpu.begin()) return false;
+  mpu.setAccelerometerRange(MPU6050_RANGE_4_G);
+  mpu.setFilterBandwidth(MPU6050_BAND_44_HZ);
   return true;
 }
 
-struct Features {
-  float mean;
-  float rms;
-  float peakToPeak;
-  float kurtosis;
-  float crestFactor;
-  float temperature;
-};
+void setMotorEnabled(bool enabled) {
+  motorEnabled = enabled;
+  if (enabled) {
+    digitalWrite(MOTOR_IN1_PIN, HIGH);
+    digitalWrite(MOTOR_IN2_PIN, LOW);
+    digitalWrite(MOTOR_ENA_PIN, HIGH);
+    Serial.println("Motor enabled: forward at full speed");
+  } else {
+    digitalWrite(MOTOR_ENA_PIN, LOW);
+    digitalWrite(MOTOR_IN1_PIN, LOW);
+    digitalWrite(MOTOR_IN2_PIN, LOW);
+    Serial.println("Motor disabled");
+  }
+}
+
+void processSerialCommands() {
+  if (!Serial.available()) return;
+  String command = Serial.readStringUntil('\n');
+  command.trim();
+  command.toLowerCase();
+  if (command == "motor on") {
+    setMotorEnabled(true);
+  } else if (command == "motor off" || command == "stop") {
+    setMotorEnabled(false);
+  } else if (command == "status") {
+    Serial.print("MOTOR="); Serial.print(motorEnabled ? "ON" : "OFF");
+    Serial.print(",MPU6050="); Serial.println(mpuReady ? "READY" : "UNAVAILABLE");
+  } else if (command.length() > 0) {
+    Serial.println("Commands: motor on | motor off | status");
+  }
+}
 
 Features calculateFeatures(const float *x, uint16_t n, float tempC) {
   Features f{};
@@ -101,11 +127,6 @@ Features calculateFeatures(const float *x, uint16_t n, float tempC) {
   return f;
 }
 
-struct Detection {
-  bool abnormal;
-  float maxAbsRobustZ;
-};
-
 Detection detectAnomaly(const Features &f) {
   const float values[SHAKESENSE_FEATURE_COUNT] = {
     f.mean, f.rms, f.peakToPeak, f.kurtosis, f.crestFactor, f.temperature
@@ -128,38 +149,88 @@ void setup() {
   Serial.begin(115200);
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   Wire.setClock(400000);
+
+  pinMode(MOTOR_ENA_PIN, OUTPUT);
+  pinMode(MOTOR_IN1_PIN, OUTPUT);
+  pinMode(MOTOR_IN2_PIN, OUTPUT);
+  setMotorEnabled(false);
+
   tempSensor.begin();
 
-  // Wake MPU6050 and configure +/-2g accelerometer range.
-  if (!writeMPU(0x6B, 0x00)) {
-    Serial.println("ERROR: MPU6050 not responding. Check I2C wiring/address.");
-    while (true) delay(1000);
+  mpuReady = tryStartMpu();
+  lastMpuRetryMs = millis();
+  if (mpuReady) {
+    Serial.println("ShakeSense sensor readings started");
+  } else {
+    Serial.println("MPU6050 not detected; temperature readings continue while retrying.");
   }
-  writeMPU(0x1C, 0x00); // +/-2g
 
   Serial.println("ShakeSense ESP32 started");
   Serial.print("Device profile: "); Serial.println(SHAKESENSE_DEVICE_ID);
   Serial.println("Features: mean,rms,peak_to_peak,kurtosis,crest_factor,temperature_c");
+  Serial.println("Motor is OFF by default. Send 'motor on' only after checking the hardware.");
   nextSampleUs = micros();
 }
 
 void loop() {
-  const uint32_t now = micros();
-  if ((int32_t)(now - nextSampleUs) < 0) return;
-  nextSampleUs += SAMPLE_PERIOD_US;
+  processSerialCommands();
 
-  float ax_g;
-  if (!readAccelX_g(ax_g)) {
-    Serial.println("WARN: MPU6050 read failed; skipping sample");
-    return;
+  const unsigned long nowMs = millis();
+  if (!mpuReady && nowMs - lastMpuRetryMs >= MPU_RETRY_INTERVAL_MS) {
+    lastMpuRetryMs = nowMs;
+    mpuReady = tryStartMpu();
+    if (mpuReady) Serial.println("MPU6050 detected; accelerometer readings enabled.");
   }
-  samples[sampleCount++] = ax_g;
 
-  if (sampleCount >= WINDOW_SIZE) {
-    // DS18B20 temperature sampled once per vibration window.
+  if (nowMs - lastTemperatureReadMs >= 1000) {
+    lastTemperatureReadMs = nowMs;
     tempSensor.requestTemperatures();
     temperatureC = tempSensor.getTempCByIndex(0);
+  }
 
+  const uint32_t now = micros();
+  if (mpuReady && (int32_t)(now - nextSampleUs) >= 0) {
+    nextSampleUs += SAMPLE_PERIOD_US;
+
+    sensors_event_t accel, gyro, mpuTemp;
+    mpu.getEvent(&accel, &gyro, &mpuTemp);
+    latestAccelX = accel.acceleration.x;
+    latestAccelY = accel.acceleration.y;
+    latestAccelZ = accel.acceleration.z;
+    const float magnitudeMs2 = sqrtf(
+      accel.acceleration.x * accel.acceleration.x +
+      accel.acceleration.y * accel.acceleration.y +
+      accel.acceleration.z * accel.acceleration.z
+    );
+    samples[sampleCount++] = magnitudeMs2 / 9.80665f;
+  }
+
+  if (nowMs - lastLiveReportMs >= 500) {
+    lastLiveReportMs = nowMs;
+    if (mpuReady) {
+      const float magnitude = sqrtf(
+        latestAccelX * latestAccelX +
+        latestAccelY * latestAccelY +
+        latestAccelZ * latestAccelZ
+      );
+      Serial.print("Accel X: "); Serial.print(latestAccelX, 3);
+      Serial.print(" | Y: "); Serial.print(latestAccelY, 3);
+      Serial.print(" | Z: "); Serial.print(latestAccelZ, 3);
+      Serial.print(" | Vibration magnitude: "); Serial.print(magnitude, 3);
+      Serial.print(" m/s^2 | ");
+    } else {
+      Serial.print("MPU6050 unavailable | ");
+    }
+    Serial.print("Motor temperature: ");
+    if (temperatureC == DEVICE_DISCONNECTED_C || !isfinite(temperatureC)) {
+      Serial.println("Sensor disconnected!");
+    } else {
+      Serial.print(temperatureC, 2);
+      Serial.println(" C");
+    }
+  }
+
+  if (sampleCount >= WINDOW_SIZE) {
     if (temperatureC == DEVICE_DISCONNECTED_C || !isfinite(temperatureC)) {
       Serial.println("WARN: DS18B20 unavailable; cannot score this window");
     } else {
@@ -177,7 +248,6 @@ void loop() {
       Serial.print(",status="); Serial.println(d.abnormal ? "ABNORMAL" : "NORMAL");
     }
     sampleCount = 0;
-    // Restart the sample schedule after the DS18B20 conversion delay.
     nextSampleUs = micros();
   }
 }

@@ -33,6 +33,10 @@ export const MachinesPage: React.FC = () => {
   const [isCalibrationModalOpen, setIsCalibrationModalOpen] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setCurrentFilter(searchParams.get('status') || 'all');
+  }, [searchParams]);
+
   // Filter & Search Logic
   const filteredMachines = useMemo(() => {
     return machines
@@ -311,6 +315,7 @@ ${machines
             onClick={() => {
               setCurrentFilter('all');
               setSearchParams({});
+              setSearchParams({});
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-label-md text-xs transition-all cursor-pointer shadow-sm ${
               currentFilter === 'all'
@@ -327,6 +332,7 @@ ${machines
           <button
             onClick={() => {
               setCurrentFilter('healthy');
+              setSearchParams({ status: 'healthy' });
               setSearchParams({ status: 'healthy' });
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-label-md text-xs transition-all cursor-pointer shadow-sm ${
@@ -346,6 +352,7 @@ ${machines
             onClick={() => {
               setCurrentFilter('warning');
               setSearchParams({ status: 'warning' });
+              setSearchParams({ status: 'warning' });
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-label-md text-xs transition-all cursor-pointer shadow-sm ${
               currentFilter === 'warning'
@@ -363,6 +370,7 @@ ${machines
           <button
             onClick={() => {
               setCurrentFilter('critical');
+              setSearchParams({ status: 'critical' });
               setSearchParams({ status: 'critical' });
             }}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-label-md text-xs transition-all cursor-pointer shadow-sm ${
