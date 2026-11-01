@@ -14,6 +14,8 @@ export const ProvisionNodeModal: React.FC<ProvisionNodeModalProps> = ({ isOpen, 
   const [bay, setBay] = useState('Secondary Drive Bay 3');
   const [location, setLocation] = useState('Floor A — Section 2');
   const [baseline, setBaseline] = useState('1.8');
+  const [macAddress, setMacAddress] = useState('');
+  const [busAddress, setBusAddress] = useState('0x68');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
 
@@ -29,12 +31,16 @@ export const ProvisionNodeModal: React.FC<ProvisionNodeModalProps> = ({ isOpen, 
         bay,
         location,
         baseline: parseFloat(baseline) || 1.8,
+        macAddress: macAddress.trim().toUpperCase(),
+        busAddress,
       });
       setIsSubmitting(false);
       setSuccessMessage(true);
       setTimeout(() => {
         setSuccessMessage(false);
         setName('');
+        setMacAddress('');
+        setBusAddress('0x68');
         onClose();
       }, 1200);
     }, 600);
@@ -135,10 +141,32 @@ export const ProvisionNodeModal: React.FC<ProvisionNodeModalProps> = ({ isOpen, 
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Device MAC Address</label>
+              <input
+                type="text"
+                required
+                pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+                value={macAddress}
+                onChange={(e) => setMacAddress(e.target.value)}
+                placeholder="AA:BB:CC:DD:EE:01"
+                className="w-full bg-surface-container-lowest border border-outline-variant/40 rounded px-3.5 py-2.5 text-on-surface placeholder:text-outline/50 font-body-md focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="font-label-sm text-label-sm text-outline uppercase tracking-wider">I²C Bus Address</label>
+              <select value={busAddress} onChange={(e) => setBusAddress(e.target.value)} className="w-full bg-surface-container-lowest border border-outline-variant/40 rounded px-3 py-2.5 text-on-surface font-body-md focus:outline-none focus:border-primary">
+                <option value="0x68">0x68 (AD0 low)</option>
+                <option value="0x69">0x69 (AD0 high)</option>
+              </select>
+            </div>
+          </div>
+
           <div className="p-3.5 rounded bg-surface-container border border-outline-variant/30 text-body-sm text-outline flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-[20px] shrink-0">sensors</span>
             <span>
-              Device will be automatically assigned an MPU6050 I²C bus address and provisioned on the local 192.168.4.x edge network subnet.
+              MAC and I²C configuration will be stored with the node and used by the edge enrollment handshake.
             </span>
           </div>
 
@@ -173,4 +201,3 @@ export const ProvisionNodeModal: React.FC<ProvisionNodeModalProps> = ({ isOpen, 
     </Modal>
   );
 };
-

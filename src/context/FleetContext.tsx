@@ -28,8 +28,20 @@ interface FleetContextType {
   lastPredictions: ModelPrediction[];
   acknowledgeAlert: (alertId: string, author?: string) => void;
   resolveAlert: (alertId: string, author?: string) => void;
-  provisionNode: (nodeData: { name: string; type: string; bay: string; location: string; baseline: number }) => void;
-  updateMachineCalibration: (machineId: string, status: CalibrationStatus) => void;
+  provisionNode: (nodeData: {
+    name: string;
+    type: string;
+    bay: string;
+    location: string;
+    baseline: number;
+    macAddress: string;
+    busAddress: string;
+  }) => void;
+  updateMachineCalibration: (
+    machineId: string,
+    status: CalibrationStatus,
+    settings?: { baseline?: number; threshold?: number; sampleRateHz?: number },
+  ) => void;
 
   // Derived Fleet Metrics
   totalMachines: number;
@@ -137,6 +149,33 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setModelStatus('loading');
         const predictions = await runModelInference(machines);
         setLastPredictions(predictions);
+        const predictionByMachine = new Map(predictions.map((prediction) => [prediction.machineId, prediction]));
+        setMachines((currentMachines) =>
+          currentMachines.map((machine) => {
+            const prediction = predictionByMachine.get(machine.id);
+            if (!prediction?.label || machine.connectionStatus === 'disconnected') return machine;
+
+            const label = prediction.label.toLowerCase();
+            const healthStatus =
+              label.includes('fault') || label.includes('critical')
+                ? 'critical'
+                : label.includes('ideal') || label.includes('healthy') || label.includes('normal')
+                ? 'healthy'
+                : 'warning';
+            return {
+              ...machine,
+              healthStatus,
+              recommendedAction: {
+                ...machine.recommendedAction,
+                title: healthStatus === 'critical' ? 'Immediate inspection required' : healthStatus === 'warning' ? 'Schedule maintenance review' : 'Continue regular production',
+                description: `Global model classification: ${prediction.label}.`,
+                confidence: prediction.score === undefined ? machine.recommendedAction.confidence : Math.round(prediction.score * 100),
+                actionRequired: healthStatus !== 'healthy',
+                severity: healthStatus === 'critical' ? 'urgent' : healthStatus === 'warning' ? 'advisory' : 'nominal',
+              },
+            };
+          }),
+        );
         setModelStatus('ready');
       }
 
@@ -189,7 +228,15 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   }, []);
 
-  const provisionNode = useCallback((nodeData: { name: string; type: string; bay: string; location: string; baseline: number }) => {
+  const provisionNode = useCallback((nodeData: {
+    name: string;
+    type: string;
+    bay: string;
+    location: string;
+    baseline: number;
+    macAddress: string;
+    busAddress: string;
+  }) => {
     const nextNum = machines.length + 1;
     const formattedNum = String(nextNum).padStart(3, '0');
     const newId = `MTR-${formattedNum}`;
@@ -234,6 +281,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         sensorLocation: 'Drive End Housing',
       },
       edge: {
+        macAddress: nodeData.macAddress,
+        busAddress: nodeData.busAddress,
         rssi: '-46 dBm',
         latencyMs: 12,
         sampleRateHz: 1600,
@@ -255,7 +304,11 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setMachines((prev) => [...prev, newMachine]);
   }, [machines.length]);
 
-  const updateMachineCalibration = useCallback((machineId: string, status: CalibrationStatus) => {
+  const updateMachineCalibration = useCallback((
+    machineId: string,
+    status: CalibrationStatus,
+    settings?: { baseline?: number; threshold?: number; sampleRateHz?: number },
+  ) => {
     setMachines((prev) =>
       prev.map((m) => {
         if (m.id === machineId) {
@@ -263,6 +316,15 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ...m,
             calibrationStatus: status,
             healthStatus: status === 'calibrating' ? 'calibrating' : m.healthStatus === 'calibrating' ? 'healthy' : m.healthStatus,
+            vibration: {
+              ...m.vibration,
+              baseline: settings?.baseline ?? m.vibration.baseline,
+              threshold: settings?.threshold ?? m.vibration.threshold,
+            },
+            edge: {
+              ...m.edge,
+              sampleRateHz: settings?.sampleRateHz ?? m.edge.sampleRateHz,
+            },
           };
         }
         return m;

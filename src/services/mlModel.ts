@@ -6,6 +6,21 @@ export type ModelInferenceStatus = 'disabled' | 'ready' | 'loading' | 'error';
 export type BrowserModelFormat = 'onnx' | 'tensorflowjs';
 type ModelRuntime = 'browser' | 'backend';
 
+export type NativeModelId = 'globalRandomForest' | 'isolationForest' | 'medianMad' | 'personalized';
+
+export interface NativeModelArtifact {
+  id: NativeModelId;
+  path: string;
+  format: 'pickle';
+  featureColumns: string[];
+}
+
+export interface ModelResult {
+  score?: number;
+  label?: string;
+  isAnomaly?: boolean;
+}
+
 export interface ModelPrediction {
   machineId: string;
   healthStatus?: Machine['healthStatus'];
@@ -19,17 +34,57 @@ export interface ModelPrediction {
   score?: number;
   label?: string;
   modelVersion?: string;
+  models?: Partial<Record<NativeModelId, ModelResult>>;
 }
 
 interface ModelRequestMachine {
   id: string;
   features: number[];
+  modelFeatures: {
+    mean: number;
+    rms: number;
+    peak_to_peak: number;
+    kurtosis: number;
+    crest_factor: number;
+    temperature_c: number;
+  };
 }
 
 const modelPath = import.meta.env.VITE_MODEL_PATH?.trim() || '/model';
-const modelApiUrl = import.meta.env.VITE_ML_API_URL?.trim();
+const modelApiUrl = import.meta.env.VITE_ML_API_URL?.trim() || 'http://localhost:8000/predict';
 const configuredFormat = import.meta.env.VITE_MODEL_FORMAT?.trim().toLowerCase();
 const configuredRuntime = import.meta.env.VITE_MODEL_RUNTIME?.trim().toLowerCase();
+const nativeModelArtifacts: NativeModelArtifact[] = [
+  {
+    id: 'globalRandomForest',
+    path: import.meta.env.VITE_GLOBAL_RF_MODEL_PATH?.trim() || 'global_models/shakesense_global_rf.pkl',
+    format: 'pickle',
+    featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor'],
+  },
+  {
+    id: 'isolationForest',
+    path:
+      import.meta.env.VITE_ISOLATION_FOREST_MODEL_PATH?.trim() ||
+      'global_models/shakesense_isolation_forest.pkl',
+    format: 'pickle',
+    featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor'],
+  },
+  {
+    id: 'medianMad',
+    path: import.meta.env.VITE_MEDIAN_MAD_MODEL_PATH?.trim() || 'global_models/shakesense_median_mad.pkl',
+    format: 'pickle',
+    featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor'],
+  },
+];
+const personalizedModelPath = import.meta.env.VITE_PERSONALIZED_MODEL_PATH?.trim();
+if (personalizedModelPath) {
+  nativeModelArtifacts.push({
+    id: 'personalized',
+    path: personalizedModelPath,
+    format: 'pickle',
+    featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor', 'temperature_c'],
+  });
+}
 const modelFormat: BrowserModelFormat | null =
   configuredFormat === 'tensorflowjs' || modelPath.endsWith('model.json')
     ? 'tensorflowjs'
@@ -41,23 +96,40 @@ const modelRuntime: ModelRuntime =
     ? 'browser'
     : 'backend';
 
-export const isModelConfigured = modelRuntime === 'browser' ? Boolean(modelFormat && modelPath) : Boolean(modelApiUrl);
+export const isModelConfigured =
+  modelRuntime === 'browser' ? Boolean(modelFormat && modelPath) : Boolean(modelApiUrl);
 
 let onnxSession: ort.InferenceSession | null = null;
 let tensorflowModel: tf.LayersModel | tf.GraphModel | null = null;
 
-const toRequestMachine = (machine: Machine): ModelRequestMachine => ({
-  id: machine.id,
-  features: [
-    machine.vibration.overall,
-    machine.vibration.x,
-    machine.vibration.y,
-    machine.vibration.z,
-    machine.temperature.core,
-    machine.temperature.ambient,
-    machine.edge.sampleRateHz,
-  ],
-});
+const toRequestMachine = (machine: Machine): ModelRequestMachine => {
+  const axes = [machine.vibration.x, machine.vibration.y, machine.vibration.z];
+  const mean = axes.reduce((sum, value) => sum + value, 0) / axes.length;
+  const rms = Math.sqrt(axes.reduce((sum, value) => sum + value ** 2, 0) / axes.length);
+  const peakToPeak = Math.max(...axes) - Math.min(...axes);
+  const crestFactor = rms === 0 ? 0 : Math.max(...axes.map((value) => Math.abs(value))) / rms;
+
+  return {
+    id: machine.id,
+    features: [
+      machine.vibration.overall,
+      machine.vibration.x,
+      machine.vibration.y,
+      machine.vibration.z,
+      machine.temperature.core,
+      machine.temperature.ambient,
+      machine.edge.sampleRateHz,
+    ],
+    modelFeatures: {
+      mean,
+      rms,
+      peak_to_peak: peakToPeak,
+      kurtosis: 3,
+      crest_factor: crestFactor,
+      temperature_c: machine.temperature.core,
+    },
+  };
+};
 
 const toPrediction = (machineId: string, output: number[]): ModelPrediction => ({
   machineId,
@@ -141,6 +213,7 @@ const runBackendInference = async (machines: ModelRequestMachine[]): Promise<Mod
     body: JSON.stringify({
       modelPath,
       modelFormat: configuredFormat || 'unknown',
+      models: nativeModelArtifacts,
       timestamp: new Date().toISOString(),
       machines,
     }),

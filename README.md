@@ -71,7 +71,19 @@ In compliance with industrial engineering standards and honest system reporting:
 
 ### ML model integration
 
-The dashboard supports both browser and backend model files. Copy `.env.example` to `.env.local` and set `VITE_MODEL_PATH`. With `VITE_MODEL_RUNTIME=auto`, ONNX and TensorFlow.js run in the browser; Python/native files use `VITE_ML_API_URL`.
+The dashboard supports both browser and backend model files. Copy `.env.example` to `.env.local`. With `VITE_MODEL_RUNTIME=auto`, ONNX and TensorFlow.js run in the browser; Python/native files use `VITE_ML_API_URL`.
+
+To run the checked-in Python models locally:
+
+```bash
+cd backend
+python -m pip install -r requirements.txt
+python -m uvicorn app:app --reload --port 8000
+```
+
+Then start the Vite app in a second terminal with `npm run dev`. The default frontend endpoint is `http://localhost:8000/predict`.
+
+The backend request includes the three trained global artifacts in `global_models/`: the Random Forest classifier, Isolation Forest anomaly detector, and Median+MAD detector. It also includes an optional personalised profile from `VITE_PERSONALIZED_MODEL_PATH`. Each artifact declares its required feature columns so the backend can apply the correct feature engineering rather than treating all models as one seven-input model.
 
 The model receives seven numeric features per machine, in this order:
 
@@ -79,7 +91,9 @@ The model receives seven numeric features per machine, in this order:
 
 The output must be a 2D tensor with one row per machine. The first output value is exposed as `score`; the second value is mapped to `healthy` (`0`), `warning` (`1`), or `critical` (`2`).
 
-Python-native files such as `.pkl`, `.joblib`, `.pt`, and `.pth` are sent to the configured backend. The backend receives the model path, format, timestamp, and the same feature arrays, and must return `{ "predictions": [{ "machineId": "MTR-001", ... }] }`.
+Python-native files such as `.pkl`, `.joblib`, `.pt`, and `.pth` are loaded by the configured backend. The backend receives `models` (each with `id`, `path`, `format`, and `featureColumns`), the seven dashboard features, and must return `{ "predictions": [{ "machineId": "MTR-001", "models": { "...": { "score": 0, "label": "..." } } }] }`. The global artifacts were trained on `mean`, `rms`, `peak_to_peak`, `kurtosis`, and `crest_factor`; the personalised profile additionally requires `temperature_c` and must be run against window-level telemetry.
+
+The dashboard derives the global feature vector from the current triaxial readings. Because the current UI stream exposes aggregate readings rather than raw FFT windows, `kurtosis` uses the neutral Gaussian value of `3`; deploy the edge/window telemetry path when production-grade personalized inference is required.
 
 For TensorFlow.js, set:
 

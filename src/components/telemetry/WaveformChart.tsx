@@ -34,15 +34,24 @@ export const WaveformChart: React.FC<WaveformChartProps> = ({ machine, filterBan
 
   // Generate responsive wave path based on real axis readings
   const amplitudeMultiplier = isCritical ? 1.8 : isWarning ? 1.3 : 1.0;
-  const yAmp = (machine.vibration.y / 4.5) * 45 * amplitudeMultiplier;
-  const xAmp = (machine.vibration.x / 4.5) * 20 * amplitudeMultiplier;
+  const bandConfig = filterBand.includes('1X')
+    ? { frequency: 1, amplitude: 0.7 }
+    : filterBand.includes('2X')
+    ? { frequency: 2, amplitude: 0.55 }
+    : filterBand.includes('Blade')
+    ? { frequency: 4, amplitude: 0.35 }
+    : filterBand.includes('High-Freq')
+    ? { frequency: 7, amplitude: 0.22 }
+    : { frequency: 1, amplitude: 1 };
+  const yAmp = (machine.vibration.y / 4.5) * 45 * amplitudeMultiplier * bandConfig.amplitude;
+  const xAmp = (machine.vibration.x / 4.5) * 20 * amplitudeMultiplier * bandConfig.amplitude;
 
   const points: [number, number][] = [];
   const secondaryPoints: [number, number][] = [];
   const segments = 40;
   for (let i = 0; i <= segments; i++) {
     const x = (i / segments) * 600;
-    const norm = (i / segments) * Math.PI * 4;
+    const norm = (i / segments) * Math.PI * 4 * bandConfig.frequency;
     // Primary Harmonic (Y dominant)
     const yVal = 80 + Math.sin(norm + phase) * yAmp + Math.sin(norm * 2 + phase * 1.5) * (yAmp * 0.35);
     points.push([x, yVal]);
@@ -61,6 +70,9 @@ export const WaveformChart: React.FC<WaveformChartProps> = ({ machine, filterBan
   const secondaryPathStr = secondaryPoints.reduce((acc, [px, py], idx) => {
     return idx === 0 ? `M ${px.toFixed(1)} ${py.toFixed(1)}` : `${acc} L ${px.toFixed(1)} ${py.toFixed(1)}`;
   }, '');
+  const peakPoint = points.reduce((peak, point) => (Math.abs(point[1] - 80) > Math.abs(peak[1] - 80) ? point : peak), points[0]);
+  const peakVelocity = (Math.abs(peakPoint[1] - 80) / 45 * 4.5).toFixed(2);
+  const dominantFrequency = Math.round((machine.specs.rpm / 60) * bandConfig.frequency);
 
   return (
     <div className="bg-surface-container-low rounded-xl p-6 sm:p-space-xl flex flex-col justify-between shadow-md relative overflow-hidden group">
@@ -196,10 +208,16 @@ export const WaveformChart: React.FC<WaveformChartProps> = ({ machine, filterBan
             {/* Real-time Cursor Line Pin */}
             <div className="absolute right-24 top-0 bottom-0 w-px bg-primary/40 flex flex-col justify-between items-center pointer-events-none">
               <span className="font-telemetry-sm text-label-sm bg-primary text-on-primary px-1.5 py-0.5 rounded-sm -mt-2">
-                {overall.toFixed(2)} pk
+                {peakVelocity} pk
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary -mb-1" />
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 text-label-sm font-telemetry-sm text-outline">
+            <span>Peak velocity: <strong className="text-on-surface">{peakVelocity} mm/s</strong></span>
+            <span>Dominant frequency: <strong className="text-primary">{dominantFrequency} Hz</strong></span>
+            <span>Band: <strong className="text-on-surface">{filterBand.split(' (')[0]}</strong></span>
           </div>
 
           <div className="flex items-center justify-between text-outline font-telemetry-sm text-label-sm mt-space-sm">

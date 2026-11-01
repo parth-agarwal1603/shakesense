@@ -11,10 +11,16 @@ interface SensorCalibrationModalProps {
 export const SensorCalibrationModal: React.FC<SensorCalibrationModalProps> = ({ isOpen, onClose }) => {
   const { machines, updateMachineCalibration } = useFleet();
   const [calibratingId, setCalibratingId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Record<string, { baseline: string; threshold: string; sampleRateHz: string }>>({});
 
   const handleRecalibrate = (id: string) => {
+    const values = settings[id];
     setCalibratingId(id);
-    updateMachineCalibration(id, 'calibrating');
+    updateMachineCalibration(id, 'calibrating', values ? {
+      baseline: Number(values.baseline),
+      threshold: Number(values.threshold),
+      sampleRateHz: Number(values.sampleRateHz),
+    } : undefined);
 
     setTimeout(() => {
       updateMachineCalibration(id, 'calibrated');
@@ -41,6 +47,8 @@ export const SensorCalibrationModal: React.FC<SensorCalibrationModalProps> = ({ 
               <tr>
                 <th className="py-3 px-4">Node & Machine</th>
                 <th className="py-3 px-4">Baseline RMS</th>
+                <th className="py-3 px-4">Cutoff</th>
+                <th className="py-3 px-4">Sample Rate</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
@@ -59,7 +67,61 @@ export const SensorCalibrationModal: React.FC<SensorCalibrationModalProps> = ({ 
                       </div>
                     </td>
                     <td className="py-3 px-4 font-telemetry-sm text-on-surface">
-                      {m.vibration.baseline.toFixed(1)} mm/s RMS
+                      <input
+                        aria-label={`${m.id} baseline`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={settings[m.id]?.baseline ?? m.vibration.baseline}
+                        onChange={(e) => setSettings((current) => ({
+                          ...current,
+                          [m.id]: {
+                            baseline: e.target.value,
+                            threshold: current[m.id]?.threshold ?? String(m.vibration.threshold),
+                            sampleRateHz: current[m.id]?.sampleRateHz ?? String(m.edge.sampleRateHz),
+                          },
+                        }))}
+                        className="w-24 bg-surface-container-lowest border border-outline-variant/30 rounded px-2 py-1"
+                      />
+                      <span className="block text-[11px] text-outline">mm/s RMS</span>
+                    </td>
+                    <td className="py-3 px-4 font-telemetry-sm text-on-surface">
+                      <input
+                        aria-label={`${m.id} threshold`}
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={settings[m.id]?.threshold ?? m.vibration.threshold}
+                        onChange={(e) => setSettings((current) => ({
+                          ...current,
+                          [m.id]: {
+                            baseline: current[m.id]?.baseline ?? String(m.vibration.baseline),
+                            threshold: e.target.value,
+                            sampleRateHz: current[m.id]?.sampleRateHz ?? String(m.edge.sampleRateHz),
+                          },
+                        }))}
+                        className="w-24 bg-surface-container-lowest border border-outline-variant/30 rounded px-2 py-1"
+                      />
+                      <span className="block text-[11px] text-outline">mm/s cutoff</span>
+                    </td>
+                    <td className="py-3 px-4 font-telemetry-sm text-on-surface">
+                      <select
+                        aria-label={`${m.id} sample rate`}
+                        value={settings[m.id]?.sampleRateHz ?? m.edge.sampleRateHz}
+                        onChange={(e) => setSettings((current) => ({
+                          ...current,
+                          [m.id]: {
+                            baseline: current[m.id]?.baseline ?? String(m.vibration.baseline),
+                            threshold: current[m.id]?.threshold ?? String(m.vibration.threshold),
+                            sampleRateHz: e.target.value,
+                          },
+                        }))}
+                        className="bg-surface-container-lowest border border-outline-variant/30 rounded px-2 py-1"
+                      >
+                        <option value="800">800 Hz</option>
+                        <option value="1600">1600 Hz</option>
+                        <option value="3200">3200 Hz</option>
+                      </select>
                     </td>
                     <td className="py-3 px-4">
                       <Badge
@@ -96,4 +158,3 @@ export const SensorCalibrationModal: React.FC<SensorCalibrationModalProps> = ({ 
     </Modal>
   );
 };
-

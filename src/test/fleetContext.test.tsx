@@ -63,6 +63,8 @@ describe('FleetContext State & Domain Calculations', () => {
         bay: 'Bay 5',
         location: 'Floor A — Section 4',
         baseline: 1.6,
+        macAddress: 'AA:BB:CC:DD:EE:04',
+        busAddress: '0x68',
       });
     });
 
@@ -85,4 +87,3 @@ describe('FleetContext State & Domain Calculations', () => {
     expect(machine?.calibrationStatus).toBe('calibrating');
   });
 });
-

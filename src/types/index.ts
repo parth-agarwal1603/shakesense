@@ -36,6 +36,8 @@ export interface MachineSpecs {
 }
 
 export interface EdgeDiagnostic {
+  macAddress?: string;
+  busAddress?: string;
   rssi: string;
   latencyMs: number;
   sampleRateHz: number;
@@ -111,4 +113,3 @@ export interface TelemetryPoint {
   composite: number;
   temp: number;
 }
-
