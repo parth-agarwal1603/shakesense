@@ -9,6 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_ISOLATION_FOREST_MODEL_PATH?: string;
   readonly VITE_MEDIAN_MAD_MODEL_PATH?: string;
   readonly VITE_PERSONALIZED_MODEL_PATH?: string;
+  readonly VITE_ESP32_MODEL_PATH?: string;
 }
 
 interface ImportMeta {

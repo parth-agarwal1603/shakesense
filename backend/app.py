@@ -27,6 +27,10 @@ GLOBAL_MODEL_PATHS = {
     ),
 }
 PERSONALIZED_MODEL_PATH = os.getenv("SHAKESENSE_PERSONALIZED_MODEL_PATH", "")
+ESP32_FIRMWARE_PATH = os.getenv(
+    "SHAKESENSE_ESP32_MODEL_PATH",
+    str(ROOT / "global_models" / "esp32-model" / "ShakeSense_ESP32.ino"),
+)
 
 
 class ModelFeatures(BaseModel):
@@ -159,6 +163,18 @@ def _personalized(machines: list[MachineInput]) -> list[dict[str, Any]]:
     ]
 
 
+def _esp32_embedded(machines: list[MachineInput], median_mad_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Represent the same six-feature detector compiled into the ESP32 firmware."""
+    return [
+        {
+            **result,
+            "label": "ABNORMAL" if result["isAnomaly"] else "NORMAL",
+            "firmware": Path(ESP32_FIRMWARE_PATH).name,
+        }
+        for result in median_mad_results
+    ]
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
@@ -167,7 +183,12 @@ def health() -> dict[str, Any]:
             model_id: Path(path).expanduser().is_file()
             for model_id, path in GLOBAL_MODEL_PATHS.items()
         }
-        | {"personalized": bool(PERSONALIZED_MODEL_PATH and Path(PERSONALIZED_MODEL_PATH).expanduser().is_file())},
+        | {
+            "personalized": bool(
+                PERSONALIZED_MODEL_PATH and Path(PERSONALIZED_MODEL_PATH).expanduser().is_file()
+            ),
+            "esp32Embedded": Path(ESP32_FIRMWARE_PATH).expanduser().is_file(),
+        },
     }
 
 
@@ -179,6 +200,7 @@ def predict(request: PredictionRequest) -> dict[str, list[dict[str, Any]]]:
             "isolationForest": _isolation_forest(request.machines),
             "medianMad": _median_mad(request.machines),
         }
+        results["esp32Embedded"] = _esp32_embedded(request.machines, results["medianMad"])
         if PERSONALIZED_MODEL_PATH:
             results["personalized"] = _personalized(request.machines)
     except HTTPException:

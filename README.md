@@ -95,6 +95,21 @@ Python-native files such as `.pkl`, `.joblib`, `.pt`, and `.pth` are loaded by t
 
 The dashboard derives the global feature vector from the current triaxial readings. Because the current UI stream exposes aggregate readings rather than raw FFT windows, `kurtosis` uses the neutral Gaussian value of `3`; deploy the edge/window telemetry path when production-grade personalized inference is required.
 
+### ESP32 edge model
+
+The firmware in [`global_models/esp32-model`](./global_models/esp32-model) is integrated as the `esp32Embedded` model contract. It computes `mean`, `rms`, `peak_to_peak`, `kurtosis`, `crest_factor`, and `temperature_c` over a 1000-sample MPU-6050 window, then applies the device Median+MAD profile from `ShakeSense_Profile.h`. The backend returns this edge result alongside the three global model results.
+
+`ShakeSense_Profile.h` is intentionally a placeholder until a real profile is exported. Generate one from the personalized notebook output, then upload `ShakeSense_ESP32.ino` with the Arduino `Wire`, `OneWire`, and `DallasTemperature` libraries:
+
+```bash
+python global_models/esp32-model/export_profile.py \
+  path/to/SHAKESENSE_MOTOR_001_calculated_features.csv \
+  --device-id SHAKESENSE_MOTOR_001 \
+  --output global_models/esp32-model/ShakeSense_Profile.h
+```
+
+The firmware emits comma-separated feature values and `status=NORMAL|ABNORMAL` over Serial at 115200 baud. The current web dashboard remains simulation-backed until a gateway forwards those records to the backend `/predict` request.
+
 For TensorFlow.js, set:
 
 ```env

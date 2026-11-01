@@ -15,7 +15,7 @@ export const EdgeDebugConsoleModal: React.FC<EdgeDebugConsoleModalProps> = ({
 }) => {
   const [logEntries, setLogEntries] = useState<string[]>([
     `[INFO] [ESP32-S3-${machine.id}] I2C bus initialized at 400kHz. Sensor WHO_AM_I responded: 0x68`,
-    `[INFO] TinyML INT8 model loaded in flash: 1600Hz sampling window, 512-point FFT enabled`,
+    `[INFO] ShakeSense embedded Median+MAD profile loaded: 1000-sample window, 6 features`,
     `[INFO] WiFi Station connected to SSID 'PFL_FACTORY_WFA_IOT' (IP: ${machine.edge.ipAddress}, RSSI: ${machine.edge.rssi})`,
     `[DATA] Frame #${machine.edge.framesSent - 4}: ax=+0.112g ay=+0.194g az=+0.082g | RMS=2.41 mm/s | INT8_LAT=12ms`,
     `[DATA] Frame #${machine.edge.framesSent - 3}: ax=+0.109g ay=+0.191g az=+0.080g | RMS=2.39 mm/s | INT8_LAT=12ms`,
@@ -142,4 +142,3 @@ export const EdgeDebugConsoleModal: React.FC<EdgeDebugConsoleModalProps> = ({
     </Modal>
   );
 };
-

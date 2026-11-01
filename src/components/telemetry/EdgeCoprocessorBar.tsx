@@ -36,7 +36,7 @@ export const EdgeCoprocessorBar: React.FC<EdgeCoprocessorBarProps> = ({ machine 
                 </span>
               </div>
               <p className="font-body-sm text-body-sm text-outline">
-                Real-time local anomaly inference & frequency FFT decomposition ({machine.edge.protocol})
+                Real-time local Median+MAD anomaly inference & frequency FFT decomposition ({machine.edge.protocol})
               </p>
             </div>
           </div>
@@ -141,4 +141,3 @@ export const EdgeCoprocessorBar: React.FC<EdgeCoprocessorBarProps> = ({ machine 
     </>
   );
 };
-

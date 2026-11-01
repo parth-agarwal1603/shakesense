@@ -6,12 +6,17 @@ export type ModelInferenceStatus = 'disabled' | 'ready' | 'loading' | 'error';
 export type BrowserModelFormat = 'onnx' | 'tensorflowjs';
 type ModelRuntime = 'browser' | 'backend';
 
-export type NativeModelId = 'globalRandomForest' | 'isolationForest' | 'medianMad' | 'personalized';
+export type NativeModelId =
+  | 'globalRandomForest'
+  | 'isolationForest'
+  | 'medianMad'
+  | 'personalized'
+  | 'esp32Embedded';
 
 export interface NativeModelArtifact {
   id: NativeModelId;
   path: string;
-  format: 'pickle';
+  format: 'pickle' | 'firmware';
   featureColumns: string[];
 }
 
@@ -75,6 +80,12 @@ const nativeModelArtifacts: NativeModelArtifact[] = [
     format: 'pickle',
     featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor'],
   },
+  {
+    id: 'esp32Embedded',
+    path: import.meta.env.VITE_ESP32_MODEL_PATH?.trim() || 'global_models/esp32-model/ShakeSense_ESP32.ino',
+    format: 'firmware',
+    featureColumns: ['mean', 'rms', 'peak_to_peak', 'kurtosis', 'crest_factor', 'temperature_c'],
+  },
 ];
 const personalizedModelPath = import.meta.env.VITE_PERSONALIZED_MODEL_PATH?.trim();
 if (personalizedModelPath) {
@@ -98,6 +109,17 @@ const modelRuntime: ModelRuntime =
 
 export const isModelConfigured =
   modelRuntime === 'browser' ? Boolean(modelFormat && modelPath) : Boolean(modelApiUrl);
+
+export const checkModelHealth = async (): Promise<void> => {
+  if (modelRuntime === 'browser') return;
+  if (!modelApiUrl) throw new Error('ML backend URL is not configured.');
+
+  const healthUrl = modelApiUrl.replace(/\/predict\/?$/, '/health');
+  const response = await fetch(healthUrl);
+  if (!response.ok) {
+    throw new Error(`ML backend health check returned HTTP ${response.status}`);
+  }
+};
 
 let onnxSession: ort.InferenceSession | null = null;
 let tensorflowModel: tf.LayersModel | tf.GraphModel | null = null;

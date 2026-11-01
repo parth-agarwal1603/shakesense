@@ -4,6 +4,7 @@ import { INITIAL_FLEET } from '../data/mockFleet';
 import { INITIAL_ALERTS } from '../data/mockAlerts';
 import {
   isModelConfigured,
+  checkModelHealth,
   ModelInferenceStatus,
   ModelPrediction,
   runModelInference,
@@ -79,10 +80,30 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [lastSyncTime, setLastSyncTime] = useState<string>('10:42:18 AM');
   const [isSweeping, setIsSweeping] = useState<boolean>(false);
   const [modelStatus, setModelStatus] = useState<ModelInferenceStatus>(
-    isModelConfigured ? 'ready' : 'disabled',
+    isModelConfigured ? 'loading' : 'disabled',
   );
   const [modelError, setModelError] = useState<string | null>(null);
   const [lastPredictions, setLastPredictions] = useState<ModelPrediction[]>([]);
+
+  useEffect(() => {
+    if (!isModelConfigured) return;
+
+    let active = true;
+    checkModelHealth()
+      .then(() => {
+        if (active) setModelStatus('ready');
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setModelStatus('error');
+          setModelError(error instanceof Error ? error.message : 'ML backend health check failed.');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Controlled deterministic live micro-drift
   useEffect(() => {
